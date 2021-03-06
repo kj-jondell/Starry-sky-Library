@@ -26,12 +26,11 @@
 #define clockPin 3
 #define dataPin 4
 
-#define amtSigns 7
+#define amtSigns 7 //TODO byt namn
 
 const uint16_t switchPins[16] = {A0, A1, A2,  A3,  A4,  A5,  A6,  A7,
                                  A8, A9, A10, A11, A12, A13, A14, A15};
 
-int out = 0; // TODO ta bort
 uint16_t lastDebounce[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint64_t output = 0;
 
@@ -40,18 +39,17 @@ struct StarSign {
   int noLamps, noShifts;
   bool turnedOn = false;
   uint64_t bitMask = 0;
+  unsigned long blinkTime = 0;
   StarSign(char *name_, int noLamps_) : name(name_), noLamps(noLamps_) {}
 };
 
+/**
+ * First amount of signs ...
+ */
 StarSign signs[amtSigns] = {
-    {"Pegasus", 8}, {"Jungfrun", 3}, {"Lilla Björn", 7}, {"Björnväktaren", 6},
-    {"Kräftan", 4}, {"Orion", 2},    {"Stora Björn", 8}};
-
-uint64_t generateBinary(int start, int end) {
-  if (start < 0 || end < 0 || start >= end)
-    return 0;
-  return ((((uint64_t)1) << (end - start)) - 1) << start;
-}
+    {"Pegasus", 8}, {"Jungfrun", 11}, {"Lilla Björn", 6}, {"Björnväktaren", 7},
+    {"Kräftan", 4}, {"Orion", 5},    {"Stora Björn", 7}
+};
 
 void setup() {
 
@@ -63,22 +61,18 @@ void setup() {
 
   int countSign = 0;
   for (int i = 0; i < amtSigns; i++) {
-    //uint64_t binary = generateBinary(countSign, signs[i].noLamps + countSign);
     signs[i].noShifts = countSign;
     signs[i].bitMask = (1 << (signs[i].noLamps)) - 1;
     countSign += signs[i].noLamps;
-    // output |= (binary * signs[i].turnedOn);
   }
-
-  Serial.println("Click!");
-  pinMode(13, OUTPUT);
 
   pinMode(latchPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
+
 }
 
-int count = 0;
+int count=0;
 void loop() {
   for (int i = 0; i < 30; i++) {
     output |= (signs[count].bitMask & random(signs[count].bitMask+1))<<signs[count].noShifts; // blinking...
@@ -94,8 +88,6 @@ void loop() {
 
     // shift out the bits
 
-    // take the latch pin high so the pins reflect
-    // the data we have sent
     digitalWrite(latchPin, HIGH);
     delay(30);
     output &= ~(signs[count].bitMask<<signs[count].noShifts); // Clear...
