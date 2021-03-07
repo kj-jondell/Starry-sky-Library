@@ -47,8 +47,8 @@ struct StarSign {
  * First amount of signs ...
  */
 StarSign signs[amtSigns] = {
-    {"Pegasus", 8}, {"Jungfrun", 11}, {"Lilla Björn", 6}, {"Björnväktaren", 7},
-    {"Kräftan", 4}, {"Orion", 5},    {"Stora Björn", 7}
+    {"Björnväktaren", 7}, {"Pegasus", 8}, {"Kräftan", 4}, {"Orion", 5}, //vänster
+    {"Stora Björn", 7}, {"Lilla Björn", 6}, {"Jungfrun", 11} //höger
 };
 
 void setup() {
@@ -75,7 +75,7 @@ void setup() {
 int count=0;
 void loop() {
   for (int i = 0; i < 30; i++) {
-    output |= (signs[count].bitMask & random(signs[count].bitMask+1))<<signs[count].noShifts; // blinking...
+    //output |= (signs[count].bitMask & random(signs[count].bitMask+1))<<signs[count].noShifts; // blinking...
     digitalWrite(latchPin, LOW);
 
     shiftOut(dataPin, clockPin, MSBFIRST, (byte)(output >> 24)); // 3 höger
@@ -90,7 +90,7 @@ void loop() {
 
     digitalWrite(latchPin, HIGH);
     delay(30);
-    output &= ~(signs[count].bitMask<<signs[count].noShifts); // Clear...
+    //output &= ~(signs[count].bitMask<<signs[count].noShifts); // Clear...
   }
   count = (count + 1) % amtSigns;
 }
