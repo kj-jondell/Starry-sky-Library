@@ -4,9 +4,6 @@
  *
  * TODO:  1. Kod för knappar
  *        2. Kod för lampor
- *        3.
- *        4.
- *        5.
  *
  * Frågor 1. Beräkna strömförsörjning... (är 18W agg tillräckligt?) Kan behöva köpa 36w agg...
  *        2. Hur många stjärnbilder? 15-16 bilder
@@ -21,7 +18,8 @@
  *
  */
 #include <Arduino.h>
-#define DEBOUNCE 200
+#define DEBOUNCE_TIME 200
+#define BLINKING_TIME 5000
 
 #define largeLatchPin 2
 #define largeClockPin 3
@@ -39,104 +37,153 @@
 #define amtSmallSigns 4 
 #define amtMiddleSigns 6 
 
-
 const uint8_t largeOrder[6] = {24, 16, 8, 32, 0, 40};
+
+const uint16_t shiftRegisterPins[9] = {largeLatchPin, largeClockPin, largeDataPin, smallLatchPin, smallClockPin, smallDataPin, middleLatchPin, middleClockPin, middleDataPin};
+
 const uint16_t switchPins[16] = {A0, A1, A2,  A3,  A4,  A5,  A6,  A7,
                                  A8, A9, A10, A11, A12, A13, A14, A15};
 
+uint16_t state[16] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 uint16_t lastDebounce[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-uint64_t largeOutput = 0;
+uint64_t largeOutput = 0, smallOutput = 0, middleOutput = 0;
+
+char *nameOfSign = "";
 
 struct StarSign {
   char *name;
   int noLamps, noShifts;
   bool turnedOn = false;
+
   uint64_t bitMask = 0;
+  uint16_t switchPin;
+
   unsigned long blinkTime = 0;
-  StarSign(char *name_, int noLamps_) : name(name_), noLamps(noLamps_) {}
+  StarSign(char *name_, int noLamps_, uint16_t switchPin_) : name(name_), noLamps(noLamps_), switchPin(switchPin_) {}
 };
 
 /**
  * De första stjärntecknen, som tillhör den "stora" gruppen. Är totalt 48 lampor (dvs 6register*8=48)
  */
 StarSign largeSigns[amtLargeSigns] = {
-    {"Björnväktaren", 7}, {"Pegasus", 8}, {"Kräftan", 4}, {"Orion", 5}, //vänster
-    {"Stora Björn", 7}, {"Lilla Björn", 6}, {"Jungfrun", 11} //höger
+    {"Björnväktaren", 7, A0}, {"Pegasus", 8, A1}, {"Kräftan", 4, A2}, {"Orion", 5, A3}, //vänster
+    {"Stora Björn", 7, A4}, {"Oxen", 6, A5}, {"Jungfrun", 11, A6} //höger
 };
 
 /**
  * De andra stjärntecknen, som tillhör den "lilla" gruppen. Är totalt 24 lampor (dvs 3register*8=24)
  */
 StarSign smallSigns[amtSmallSigns] = {
-  {"Draken", 8}, {"Cepheus", 5}, {"Cassiopeia", 5}, {"Perseus", 6}
+  {"Draken", 8, A7}, {"Cepheus", 5, A8}, {"Cassiopeia", 5, A9}, {"Perseus", 6, A10}
 };
 
 /**
  * De tredje stjärntecknen, som tillhör "mellan" gruppen. Är totalt 32 lampor (dvs 4register*8=32)
  */
 StarSign middleSigns[amtMiddleSigns] = {
-  {"Väduren", 4}, {"Oxen", 6}, {"Orion", 5}, {"Kusken", 5}, {"Tvillingarna", 11}, {"Lejonet", 10} //just nu totalt 41 lampor... (behöver kanske en grupp till...)
+  {"Väduren", 4, A11}, {"Lilla Björn", 6, A12}, {"Orion", 5, A13}, {"Kusken", 5, A14}, {"Tvillingarna", 11, A15}, {"Lejonet", 10, A0} //just nu totalt 41 lampor... (behöver kanske en grupp till...) , TODO 17 knappar??
 };
 
-void setup() {
-
-  Serial.begin(115200);
-
-  for (auto pin : switchPins) {
-    pinMode(pin, INPUT_PULLUP);
-  }
-
+/**
+ * Skapar bitmasks som används för att shifta ut ett visst tecken
+ */
+void createBitmasks(int amtSigns, StarSign signs[]){
   int countSign = 0;
-  for (int i = 0; i < amtLargeSigns; i++) {
-    largeSigns[i].noShifts = countSign;
-    largeSigns[i].bitMask = (1 << (largeSigns[i].noLamps)) - 1; //denna rad skapar en sträng av ettor lika lång som antalet lampor. T.ex. 4 lampor=> 0b00001 << 4 steg => 0b10000 - 1 = 0b1111
-    countSign += largeSigns[i].noLamps;
+  for (int i = 0; i < amtSigns; i++) {
+    signs[i].noShifts = countSign;
+    signs[i].bitMask = (1 << (signs[i].noLamps)) - 1; //denna rad skapar en sträng av ettor lika lång som antalet lampor. T.ex. 4 lampor=> 0b00001 << 4 steg => 0b10000 - 1 = 0b1111
+    countSign += signs[i].noLamps;
   }
-
-  pinMode(largeLatchPin, OUTPUT);
-  pinMode(largeClockPin, OUTPUT);
-  pinMode(largeDataPin, OUTPUT);
-
-  pinMode(smallLatchPin, OUTPUT);
-  pinMode(smallClockPin, OUTPUT);
-  pinMode(smallDataPin, OUTPUT);
-
-  pinMode(middleLatchPin, OUTPUT);
-  pinMode(middleClockPin, OUTPUT);
-  pinMode(middleDataPin, OUTPUT);
 }
 
 void writeOutput(int latchPin, int clockPin, int dataPin, uint64_t output, uint8_t outputOrder[], int amtRegisters){
   digitalWrite(latchPin, LOW);
 
-  for (size_t i = 0; i < amtRegisters; i++){
-    shiftOut(dataPin, clockPin, MSBFIRST, (byte)(output >> outputOrder[i])); // 3 höger
-  }
-
-
-
-  //shiftOut(largeDataPin, largeClockPin, MSBFIRST, (byte)(largeOutput >> 24)); // 3 höger
-  //shiftOut(largeDataPin, largeClockPin, MSBFIRST, (byte)(largeOutput >> 16)); // 1 vänster
-  //shiftOut(largeDataPin, largeClockPin, MSBFIRST, (byte)(largeOutput >> 8));  // 2 vänster
-  //shiftOut(largeDataPin, largeClockPin, MSBFIRST, (byte)(largeOutput >> 32)); // 2 höger
-  //shiftOut(largeDataPin, largeClockPin, MSBFIRST, (byte)(largeOutput));       // 3 vänster
-  //shiftOut(largeDataPin, largeClockPin, MSBFIRST,                        // 1 höger (med 3pins uppåt)
-  //          (byte)(largeOutput >> 40));                                      
+  for (size_t i = 0; i < amtRegisters; i++)
+    shiftOut(dataPin, clockPin, MSBFIRST, (byte)(output >> outputOrder[i])); 
 
   // shift out the bits
   digitalWrite(latchPin, HIGH);
 }
 
-int count = 0;
+void updateOutput(uint64_t& output, StarSign sign, bool blink){
+  uint64_t mask = sign.bitMask;
+  if(blink)
+    mask &= random(sign.bitMask+1);
+  output |= mask<<sign.noShifts; // blinking...
+}
+
+void clearOutput(uint64_t& output, StarSign sign){
+  output &= ~(sign.bitMask<<sign.noShifts); // Clear...
+}
+
+void setup() {
+
+  Serial.begin(115200);
+
+  // Sätt alla knapp-pins till input_pullup
+  for (int i = 0; i<16; i++) {
+    pinMode(switchPins[i], INPUT_PULLUP);
+    state[i] = digitalRead(switchPins[i]);
+  }
+
+  // Sätt alla shift register-pins till output
+  for (auto pin : shiftRegisterPins){
+    pinMode(pin, OUTPUT);
+  }
+
+  createBitmasks(amtLargeSigns, largeSigns);
+  createBitmasks(amtSmallSigns, smallSigns);
+  createBitmasks(amtMiddleSigns, middleSigns);
+
+  for(StarSign sign : largeSigns)
+  {
+      clearOutput(largeOutput, sign);
+      writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
+  }
+  //largeSigns[5].turnedOn = true;
+}
+
 void loop() {
 
-  //TODO fixa en blinka funktion...
-  for (int i = 0; i < 30; i++) {
-    //largeOutput |= (largeSigns[count].bitMask & random(largeSigns[count].bitMask+1))<<largeSigns[count].noShifts; // blinking...
-    writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
-    delay(30);
-    //largeOutput &= ~(largeSigns[count].bitMask<<largeSigns[count].noShifts); // Clear...
+  for (int i = 0; i<16; i++) {
+    if(state[i] != digitalRead(switchPins[i])){
+      if((millis()-lastDebounce[i])>DEBOUNCE_TIME){
+        lastDebounce[i] = millis();
+        for(StarSign &sign : largeSigns){
+          if(sign.switchPin == switchPins[i]){
+            if(!sign.turnedOn){
+              sign.turnedOn = true;
+              sign.blinkTime = millis();
+            }
+            state[i] = digitalRead(switchPins[i]);
+          } else if (sign.turnedOn){
+            sign.turnedOn = false;
+            clearOutput(largeOutput, sign);
+          }
+        }
+      }
+    }
   }
-  count = (count+1)%amtLargeSigns;
 
+  //Serial.println(digitalRead(A0));
+  //delay(1000);
+
+  for(StarSign sign : largeSigns)
+    if(sign.turnedOn){
+      if((millis() - sign.blinkTime)<BLINKING_TIME){
+        updateOutput(largeOutput, sign, true);
+        writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
+        delay(100);
+        clearOutput(largeOutput, sign);
+        } 
+        else if(strcmp(sign.name, nameOfSign) != 0){
+         updateOutput(largeOutput, sign, false);
+         writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
+         delay(100);
+         clearOutput(largeOutput, sign);
+         Serial.println("once");
+         nameOfSign = sign.name;
+        } 
+    }
 }
