@@ -74,14 +74,14 @@ StarSign largeSigns[amtLargeSigns] = {
  * De andra stjärntecknen, som tillhör den "lilla" gruppen. Är totalt 24 lampor (dvs 3register*8=24)
  */
 StarSign smallSigns[amtSmallSigns] = {
-  {"Draken", 8, A7}, {"Cepheus", 5, A8}, {"Cassiopeia", 5, A9}, {"Perseus", 6, A10}
+  /*{"Draken", 8, A7},*/ {"Fiskarna", 7, A7}, {"Cepheus", 5, A8}, {"Cassiopeia", 5, A9}, /*{"Perseus", 6, A10}*/ {"Lilla Björn", 6, A10}
 };
 
 /**
  * De tredje stjärntecknen, som tillhör "mellan" gruppen. Är totalt 32 lampor (dvs 4register*8=32)
  */
 StarSign middleSigns[amtMiddleSigns] = {
-  {"Väduren", 4, A11}, {"Lilla Björn", 6, A12}, {"Orion", 5, A13}, {"Kusken", 5, A14}, {"Tvillingarna", 11, A15}, {"Lejonet", 10, A0} //just nu totalt 41 lampor... (behöver kanske en grupp till...) , TODO 17 knappar??
+   {"Väduren", 4, A11}, {"Lejonet", 10, A12},/*{"Orion", 5, A13},*/ {"Tvillingarna", 11, A13}, {"Kusken", 5, A14} //just nu totalt 41 lampor... (behöver kanske en grupp till...) , TODO 17 knappar??
 };
 
 /**
