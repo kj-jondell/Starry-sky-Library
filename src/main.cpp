@@ -38,7 +38,7 @@
 #define amtMiddleSigns 4 
 
 const uint8_t largeOrder[6] = {24, 16, 8, 32, 0, 40};
-const uint8_t middleOrder[4] = {0, 8, 16, 24};
+const uint8_t middleOrder[4] = {24, 16, 8, 0};
 const uint8_t smallOrder[3] = {0, 8, 16};
 
 const uint16_t shiftRegisterPins[9] = {largeLatchPin, largeClockPin, largeDataPin, smallLatchPin, smallClockPin, smallDataPin, middleLatchPin, middleClockPin, middleDataPin};
@@ -50,7 +50,7 @@ uint16_t state[16] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW
 uint16_t lastDebounce[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint64_t largeOutput = 0, smallOutput = 0, middleOutput = 0;
 
-bool waitWhileBlinking = false;
+//bool waitWhileBlinking = false;
 
 char *nameOfSign = "";
 
@@ -70,7 +70,7 @@ struct StarSign {
  * De första stjärntecknen, som tillhör den "stora" gruppen. Är totalt 48 lampor (dvs 6register*8=48)
  */
 StarSign largeSigns[amtLargeSigns] = {
-    {"Björnväktaren", 7, A0}, {"Pegasus", 8, A1}, {"Kräftan", 4, A2}, {"Orion", 5, A3}, //vänster
+    {"Björnväktaren", 7, A0}, {"Pegasus", 8, A1}, {"Kräftan", 4, A2}, {"Cassiopeia", 5, A3}, //vänster
     {"Stora Björn", 7, A4}, {"Oxen", 6, A5}, {"Jungfrun", 11, A6} //höger
 };
 
@@ -78,14 +78,14 @@ StarSign largeSigns[amtLargeSigns] = {
  * De andra stjärntecknen, som tillhör den "lilla" gruppen. Är totalt 24 lampor (dvs 3register*8=24)
  */
 StarSign smallSigns[amtSmallSigns] = {
-  /*{"Draken", 8, A7},*/ {"Fiskarna", 7, A7}, {"Cepheus", 5, A8}, {"Cassiopeia", 5, A9}, /*{"Perseus", 6, A10}*/ {"Lilla Björn", 6, A10}
+  /*{"Draken", 8, A7},*/ {"Fiskarna", 7, A7}, {"Cepheus", 5, A8}, /*{"Perseus", 6, A10}*/ {"Lilla Björn", 6, A9}, {"Kusken", 5, A10}
 };
 
 /**
  * De tredje stjärntecknen, som tillhör "mellan" gruppen. Är totalt 32 lampor (dvs 4register*8=32)
  */
 StarSign middleSigns[amtMiddleSigns] = {
-   {"Väduren", 4, A11}, {"Lejonet", 10, A12},/*{"Orion", 5, A13},*/ {"Tvillingarna", 11, A13}, {"Kusken", 5, A14} //just nu totalt 41 lampor... (behöver kanske en grupp till...) , TODO 17 knappar??
+   {"Väduren", 4, A11}, {"Lejonet", 10, A12},/*{"Orion", 5, A13},*/ {"Tvillingarna", 10, A13},  {"Orion", 8, A14} //just nu totalt 41 lampor... (behöver kanske en grupp till...) , TODO 17 knappar??
 };
 
 /**
@@ -151,6 +151,18 @@ void setup() {
   createBitmasks(amtSmallSigns, smallSigns);
   createBitmasks(amtMiddleSigns, middleSigns);
 
+  for(StarSign sign : smallSigns)
+  {
+      clearOutput(smallOutput, sign);
+      writeOutput(smallLatchPin, smallClockPin, smallDataPin, smallOutput, smallOrder, 3);
+  }
+
+  for(StarSign sign : middleSigns)
+  {
+      clearOutput(middleOutput, sign);
+      writeOutput(middleLatchPin, middleClockPin, middleDataPin, middleOutput, middleOrder, 4);
+  }
+
   for(StarSign sign : largeSigns)
   {
       clearOutput(largeOutput, sign);
@@ -161,32 +173,108 @@ void setup() {
 
 void loop() {
 
-if(!waitWhileBlinking)
-{
+//if(!waitWhileBlinking)
+//{
   for (int i = 0; i<16; i++) {
     if(state[i] != digitalRead(switchPins[i])){
       if((millis()-lastDebounce[i])>DEBOUNCE_TIME){
         lastDebounce[i] = millis();
+        for(StarSign &sign : smallSigns){
+          if(sign.switchPin == switchPins[i]){
+            if(!sign.turnedOn){
+              sign.turnedOn = true;
+              sign.blinkTime = millis();
+              nameOfSign = "";
+              //waitWhileBlinking = true;
+            }
+            state[i] = digitalRead(switchPins[i]);
+          } else if (sign.turnedOn){
+            sign.turnedOn = false;
+            clearOutput(smallOutput, sign);
+            writeOutput(smallLatchPin, smallClockPin, smallDataPin, smallOutput, smallOrder, 3);
+          }
+        }       
+        for(StarSign &sign : middleSigns){
+          if(sign.switchPin == switchPins[i]){
+            if(!sign.turnedOn){
+              sign.turnedOn = true;
+              sign.blinkTime = millis();
+              nameOfSign = "";
+              //waitWhileBlinking = true;
+            }
+            state[i] = digitalRead(switchPins[i]);
+          } else if (sign.turnedOn){
+            sign.turnedOn = false;
+            clearOutput(middleOutput, sign);
+            writeOutput(middleLatchPin, middleClockPin, middleDataPin, middleOutput, middleOrder, 4);
+          }
+        }       
         for(StarSign &sign : largeSigns){
           if(sign.switchPin == switchPins[i]){
             if(!sign.turnedOn){
               sign.turnedOn = true;
               sign.blinkTime = millis();
-              waitWhileBlinking = true;
+              nameOfSign = "";
+              //waitWhileBlinking = true;
             }
             state[i] = digitalRead(switchPins[i]);
           } else if (sign.turnedOn){
             sign.turnedOn = false;
             clearOutput(largeOutput, sign);
+            writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
           }
         }
       }
     }
   }
-}
+
+
+//}
 
   //Serial.println(digitalRead(A0));
   //delay(1000);
+
+  for(StarSign sign : smallSigns)
+    if(sign.turnedOn){
+      if((millis() - sign.blinkTime)<BLINKING_TIME){
+        updateOutput(smallOutput, sign, true);
+        writeOutput(smallLatchPin, smallClockPin, smallDataPin, smallOutput, smallOrder, 3);
+        delay(40);
+        clearOutput(smallOutput, sign);
+        writeOutput(smallLatchPin, smallClockPin, smallDataPin, smallOutput, smallOrder, 3);
+        delay(120);
+        } 
+        else if(strcmp(sign.name, nameOfSign) != 0){
+          //waitWhileBlinking = false;
+         updateOutput(smallOutput, sign, false);
+         writeOutput(smallLatchPin, smallClockPin, smallDataPin, smallOutput, smallOrder, 3);
+         delay(100);
+         clearOutput(smallOutput, sign);
+         //Serial.println("once");
+          nameOfSign = sign.name;
+        } 
+    }
+
+  for(StarSign sign : middleSigns)
+    if(sign.turnedOn){
+      if((millis() - sign.blinkTime)<BLINKING_TIME){
+        updateOutput(middleOutput, sign, true);
+        writeOutput(middleLatchPin, middleClockPin, middleDataPin, middleOutput, middleOrder, 4);
+        delay(40);
+        clearOutput(middleOutput, sign);
+        writeOutput(middleLatchPin, middleClockPin, middleDataPin, middleOutput, middleOrder, 4);
+        delay(120);
+        } 
+        else if(strcmp(sign.name, nameOfSign) != 0){
+          //waitWhileBlinking = false;
+         updateOutput(middleOutput, sign, false);
+         writeOutput(middleLatchPin, middleClockPin, middleDataPin, middleOutput, middleOrder, 4);
+         delay(100);
+         clearOutput(middleOutput, sign);
+         //Serial.println("once");
+          nameOfSign = sign.name;
+        } 
+    }
 
   for(StarSign sign : largeSigns)
     if(sign.turnedOn){
@@ -199,13 +287,13 @@ if(!waitWhileBlinking)
         delay(120);
         } 
         else if(strcmp(sign.name, nameOfSign) != 0){
-          waitWhileBlinking = false;
+          //waitWhileBlinking = false;
          updateOutput(largeOutput, sign, false);
          writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
          delay(100);
          clearOutput(largeOutput, sign);
-         Serial.println("once");
-         nameOfSign = sign.name;
+         //Serial.println("once");
+          nameOfSign = sign.name;
         } 
     }
 }
