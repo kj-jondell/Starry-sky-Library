@@ -117,7 +117,7 @@ void updateOutput(uint64_t& output, StarSign sign, bool blink){
   {
     uint64_t randomMask = 0;
     for(int signIndex = 0; signIndex < sign.noLamps; signIndex++)//nödvändigt för att styra sannolikhet
-      if(random(0,BLINK_PROBABILITY)==1)//10% chans att lampa blinkar
+      if(random(BLINK_PROBABILITY)==0)//10% chans att lampa blinkar
         randomMask |= (1 << signIndex);
     //mask &= random(sign.bitMask+1);
     mask &= randomMask;
