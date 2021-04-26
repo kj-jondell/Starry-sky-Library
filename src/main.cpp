@@ -20,6 +20,7 @@
 #include <Arduino.h>
 #define DEBOUNCE_TIME 200
 #define BLINKING_TIME 5000
+#define BLINK_PROBABILITY 10 // 1/10=10% chans för blink. 2=>1/2=50%. 20=>1/20=5%...
 
 #define largeLatchPin 2
 #define largeClockPin 3
@@ -116,7 +117,7 @@ void updateOutput(uint64_t& output, StarSign sign, bool blink){
   {
     uint64_t randomMask = 0;
     for(int signIndex = 0; signIndex < sign.noLamps; signIndex++)//nödvändigt för att styra sannolikhet
-      if(random(0,10)==9)//10% chans att lampa blinkar
+      if(random(0,BLINK_PROBABILITY)==1)//10% chans att lampa blinkar
         randomMask |= (1 << signIndex);
     //mask &= random(sign.bitMask+1);
     mask &= randomMask;
