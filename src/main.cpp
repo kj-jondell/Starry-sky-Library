@@ -35,9 +35,11 @@
 
 #define amtLargeSigns 7 
 #define amtSmallSigns 4 
-#define amtMiddleSigns 6 
+#define amtMiddleSigns 4 
 
 const uint8_t largeOrder[6] = {24, 16, 8, 32, 0, 40};
+const uint8_t middleOrder[4] = {0, 8, 16, 24};
+const uint8_t smallOrder[3] = {0, 8, 16};
 
 const uint16_t shiftRegisterPins[9] = {largeLatchPin, largeClockPin, largeDataPin, smallLatchPin, smallClockPin, smallDataPin, middleLatchPin, middleClockPin, middleDataPin};
 
@@ -47,6 +49,8 @@ const uint16_t switchPins[16] = {A0, A1, A2,  A3,  A4,  A5,  A6,  A7,
 uint16_t state[16] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 uint16_t lastDebounce[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint64_t largeOutput = 0, smallOutput = 0, middleOutput = 0;
+
+bool waitWhileBlinking = false;
 
 char *nameOfSign = "";
 
@@ -109,8 +113,19 @@ void writeOutput(int latchPin, int clockPin, int dataPin, uint64_t output, uint8
 void updateOutput(uint64_t& output, StarSign sign, bool blink){
   uint64_t mask = sign.bitMask;
   if(blink)
-    mask &= random(sign.bitMask+1);
+  {
+    uint64_t randomMask = 0;
+    for(int signIndex = 0; signIndex < sign.noLamps; signIndex++)//nödvändigt för att styra sannolikhet
+      if(random(0,10)==9)//10% chans att lampa blinkar
+        randomMask |= (1 << signIndex);
+    //mask &= random(sign.bitMask+1);
+    mask &= randomMask;
+  }
   output |= mask<<sign.noShifts; // blinking...
+  //Serial.println((uint16_t)output);
+  //Serial.println((uint16_t)(output>>16));
+  //Serial.println((uint16_t)(output>>32));
+  //Serial.println((uint16_t)(output>>48));
 }
 
 void clearOutput(uint64_t& output, StarSign sign){
@@ -146,6 +161,8 @@ void setup() {
 
 void loop() {
 
+if(!waitWhileBlinking)
+{
   for (int i = 0; i<16; i++) {
     if(state[i] != digitalRead(switchPins[i])){
       if((millis()-lastDebounce[i])>DEBOUNCE_TIME){
@@ -155,6 +172,7 @@ void loop() {
             if(!sign.turnedOn){
               sign.turnedOn = true;
               sign.blinkTime = millis();
+              waitWhileBlinking = true;
             }
             state[i] = digitalRead(switchPins[i]);
           } else if (sign.turnedOn){
@@ -165,6 +183,7 @@ void loop() {
       }
     }
   }
+}
 
   //Serial.println(digitalRead(A0));
   //delay(1000);
@@ -174,10 +193,13 @@ void loop() {
       if((millis() - sign.blinkTime)<BLINKING_TIME){
         updateOutput(largeOutput, sign, true);
         writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
-        delay(100);
+        delay(40);
         clearOutput(largeOutput, sign);
+        writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
+        delay(120);
         } 
         else if(strcmp(sign.name, nameOfSign) != 0){
+          waitWhileBlinking = false;
          updateOutput(largeOutput, sign, false);
          writeOutput(largeLatchPin, largeClockPin, largeDataPin, largeOutput, largeOrder, 6);
          delay(100);
